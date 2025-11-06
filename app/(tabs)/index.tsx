@@ -1,98 +1,261 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Dimensions,
+} from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useRouter } from 'expo-router';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { playlistsApi } from '@/lib/api/endpoints';
+import type { Playlist } from '@/lib/api/types';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const { width } = Dimensions.get('window');
+
+const QUICK_ACTIONS = [
+  {
+    key: 'search',
+    href: '/search',
+    title: 'Search',
+    icon: 'magnifyingglass' as const,
+    color: '#3B82F6',
+  },
+  {
+    key: 'tracks',
+    href: '/tracks',
+    title: 'Tracks',
+    icon: 'music.note.list' as const,
+    color: '#10B981',
+  },
+  {
+    key: 'random',
+    href: '/random',
+    title: 'Random',
+    icon: 'shuffle' as const,
+    color: '#F59E0B',
+  },
+];
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
+  const { data: playlists, isLoading } = useQuery({
+    queryKey: ['playlists'],
+    queryFn: playlistsApi.getPlaylists,
+  });
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const formatDuration = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const hours = Math.floor(minutes / 60);
+    if (hours > 0) {
+      return `${hours}h ${minutes % 60}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Guitar Content Tracker</Text>
+          <Text style={styles.subtitle}>
+            Keep tabs on the songs, artists, and ideas you want to produce next
+          </Text>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          {QUICK_ACTIONS.map((action) => (
+            <Link key={action.key} href={action.href} asChild>
+              <TouchableOpacity style={styles.actionCard}>
+                <View style={[styles.actionIcon, { backgroundColor: action.color }]}>
+                  <IconSymbol name={action.icon} size={28} color="#fff" />
+                </View>
+                <Text style={styles.actionTitle}>{action.title}</Text>
+              </TouchableOpacity>
+            </Link>
+          ))}
+        </View>
+
+        {/* Playlists Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Playlists</Text>
+            {playlists && playlists.length > 0 && (
+              <Link href="/playlists" asChild>
+                <TouchableOpacity>
+                  <Text style={styles.viewAll}>View all</Text>
+                </TouchableOpacity>
+              </Link>
+            )}
+          </View>
+
+          {isLoading ? (
+            <View style={styles.loading}>
+              <ActivityIndicator size="large" color="#6366F1" />
+            </View>
+          ) : !playlists || playlists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <IconSymbol name="music.note.list" size={48} color="#9CA3AF" />
+              <Text style={styles.emptyText}>No playlists yet</Text>
+            </View>
+          ) : (
+            <View style={styles.playlistGrid}>
+              {playlists.slice(0, 6).map((playlist) => {
+                const totalDuration = playlist.playlistTracks.reduce(
+                  (sum, pt) => sum + (pt.track.duration || 0),
+                  0
+                );
+                return (
+                  <TouchableOpacity
+                    key={playlist.id}
+                    style={styles.playlistCard}
+                    onPress={() => router.push(`/playlist/${playlist.id}`)}
+                  >
+                    <View style={styles.playlistIcon}>
+                      <IconSymbol name="music.note.list" size={24} color="#6366F1" />
+                    </View>
+                    <Text style={styles.playlistName} numberOfLines={2}>
+                      {playlist.name}
+                    </Text>
+                    <Text style={styles.playlistInfo}>
+                      {playlist.playlistTracks.length} tracks • {formatDuration(totalDuration)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
   },
-  stepContainer: {
-    gap: 8,
+  content: {
+    padding: 16,
+  },
+  header: {
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#111827',
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  subtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#111827',
+  },
+  viewAll: {
+    fontSize: 14,
+    color: '#6366F1',
+    fontWeight: '600',
+  },
+  loading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyState: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  playlistGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  playlistCard: {
+    width: (width - 44) / 2,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  playlistIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  playlistName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  playlistInfo: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });
