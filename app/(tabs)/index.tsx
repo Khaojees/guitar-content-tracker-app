@@ -25,6 +25,13 @@ const QUICK_ACTIONS = [
     color: '#3B82F6',
   },
   {
+    key: 'artists',
+    href: '/artists',
+    title: 'Artists',
+    icon: 'person.2.fill' as const,
+    color: '#8B5CF6',
+  },
+  {
     key: 'tracks',
     href: '/tracks',
     title: 'Tracks',
@@ -42,7 +49,7 @@ const QUICK_ACTIONS = [
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { data: playlists, isLoading } = useQuery({
+  const { data: playlists, isLoading } = useQuery<Playlist[]>({
     queryKey: ['playlists'],
     queryFn: playlistsApi.getPlaylists,
   });
@@ -160,12 +167,13 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: 32,
     gap: 12,
+    flexWrap: 'wrap',
   },
   actionCard: {
     flex: 1,
+    flexBasis: '48%',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,

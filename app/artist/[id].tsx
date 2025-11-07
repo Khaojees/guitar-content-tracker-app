@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,15 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { artistsApi, tracksApi } from '@/lib/api/endpoints';
 import type { Track, TrackStatus } from '@/lib/api/types';
+import { buildGuessSongText } from '@/lib/guessSongText';
 
 const STATUS_OPTIONS: { value: TrackStatus; label: string; color: string }[] = [
   { value: 'idea', label: 'Idea', color: '#6B7280' },
@@ -44,10 +47,6 @@ export default function ArtistDetailScreen() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const getStatusColor = (status?: string) => {
-    return STATUS_OPTIONS.find(s => s.value === status)?.color || '#6B7280';
-  };
-
   const handleUpdateStatus = async (trackId: number, status: TrackStatus) => {
     try {
       await tracksApi.updateTrackStatus(trackId, { status });
@@ -68,6 +67,64 @@ export default function ArtistDetailScreen() {
       console.error('Star error:', error);
       Alert.alert('Error', 'Failed to update');
     }
+  };
+
+  const handleToggleIgnore = async (track: Track) => {
+    try {
+      const newIgnored = !track.trackStatus?.ignored;
+      await tracksApi.updateTrackStatus(track.id, {
+        ignored: newIgnored,
+        ...(newIgnored ? { starred: false } : {}),
+      });
+      refetch();
+      Alert.alert('Success', newIgnored ? 'Marked as ignored' : 'Re-enabled track');
+    } catch (error) {
+      console.error('Ignore error:', error);
+      Alert.alert('Error', 'Failed to update');
+    }
+  };
+
+  const handleCopyGuessText = async (track: Track) => {
+    try {
+      await Clipboard.setStringAsync(buildGuessSongText(track.name, track.artist.name));
+      Alert.alert('Copied', 'Guess text copied to clipboard');
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Error', 'Failed to copy text');
+    }
+  };
+
+  const handleOpenYouTube = (track: Track) => {
+    const query = `${track.name} ${track.artist.name}`;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    Linking.openURL(url).catch((err) => {
+      console.error('YouTube error:', err);
+      Alert.alert('Error', 'Unable to open YouTube');
+    });
+  };
+
+  const handleDeleteTrack = (track: Track) => {
+    Alert.alert(
+      'Delete Track',
+      `Delete "${track.name}" from the library?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await tracksApi.deleteTrack(track.id);
+              Alert.alert('Deleted', 'Track removed');
+              refetch();
+            } catch (error) {
+              console.error('Delete error:', error);
+              Alert.alert('Error', 'Failed to delete track');
+            }
+          },
+        },
+      ],
+    );
   };
 
   if (artistLoading) {
@@ -177,6 +234,56 @@ export default function ArtistDetailScreen() {
                       </Text>
                     </TouchableOpacity>
                   ))}
+                </View>
+
+                {track.note ? (
+                  <Text style={styles.trackNote}>{track.note}</Text>
+                ) : null}
+
+                <View style={styles.trackActions}>
+                  <TouchableOpacity
+                    style={styles.trackActionButton}
+                    onPress={() => router.push(`/track/${track.id}`)}
+                  >
+                    <IconSymbol name="music.note.list" size={18} color="#0EA5E9" />
+                    <Text style={styles.trackActionText}>Open</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.trackActionButton}
+                    onPress={() => handleToggleIgnore(track)}
+                  >
+                    <IconSymbol
+                      name={track.trackStatus?.ignored ? 'eye.slash.fill' : 'eye'}
+                      size={18}
+                      color={track.trackStatus?.ignored ? '#F97316' : '#6B7280'}
+                    />
+                    <Text style={styles.trackActionText}>
+                      {track.trackStatus?.ignored ? 'Ignored' : 'Ignore'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.trackActionButton}
+                    onPress={() => handleCopyGuessText(track)}
+                  >
+                    <IconSymbol name="doc.on.doc" size={18} color="#4F46E5" />
+                    <Text style={styles.trackActionText}>Guess</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.trackActionButton}
+                    onPress={() => handleOpenYouTube(track)}
+                  >
+                    <IconSymbol name="play.circle" size={18} color="#EF4444" />
+                    <Text style={styles.trackActionText}>YouTube</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.trackActionButton, styles.trackActionDanger]}
+                    onPress={() => handleDeleteTrack(track)}
+                  >
+                    <IconSymbol name="trash" size={18} color="#EF4444" />
+                    <Text style={[styles.trackActionText, styles.trackActionDangerText]}>
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             ))
@@ -318,5 +425,39 @@ const styles = StyleSheet.create({
   },
   statusButtonTextActive: {
     color: '#fff',
+  },
+  trackNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#4B5563',
+  },
+  trackActions: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  trackActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+  },
+  trackActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  trackActionDanger: {
+    borderColor: '#FEE2E2',
+    backgroundColor: '#FFF1F2',
+  },
+  trackActionDangerText: {
+    color: '#EF4444',
   },
 });

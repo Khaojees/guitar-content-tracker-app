@@ -8,11 +8,14 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { randomApi, tracksApi } from '@/lib/api/endpoints';
 import type { RandomTrack, TrackStatus } from '@/lib/api/types';
+import { buildGuessSongText } from '@/lib/guessSongText';
 
 const STATUS_OPTIONS: { value: TrackStatus; label: string }[] = [
   { value: 'idea', label: 'Idea' },
@@ -69,6 +72,70 @@ export default function RandomScreen() {
       console.error('Star error:', error);
       Alert.alert('Error', 'Failed to update');
     }
+  };
+
+  const toggleIgnored = async () => {
+    if (!track) return;
+
+    try {
+      const newIgnored = !track.ignored;
+      await tracksApi.updateTrackStatus(track.id, {
+        ignored: newIgnored,
+        ...(newIgnored ? { starred: false } : {}),
+      });
+      setTrack({
+        ...track,
+        ignored: newIgnored,
+        starred: newIgnored ? false : track.starred,
+      });
+      Alert.alert('Success', newIgnored ? 'Marked as ignored' : 'Re-enabled track');
+    } catch (error) {
+      console.error('Ignore error:', error);
+      Alert.alert('Error', 'Failed to update');
+    }
+  };
+
+  const copyGuessText = async () => {
+    if (!track) return;
+    try {
+      await Clipboard.setStringAsync(buildGuessSongText(track.name, track.artist.name));
+      Alert.alert('Copied', 'Guess text copied to clipboard');
+    } catch (error) {
+      console.error('Clipboard error:', error);
+      Alert.alert('Error', 'Failed to copy text');
+    }
+  };
+
+  const openYouTube = () => {
+    if (!track) return;
+    const query = `${track.name} ${track.artist.name}`;
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    Linking.openURL(url).catch((error) => {
+      console.error('YouTube error:', error);
+      Alert.alert('Error', 'Unable to open YouTube');
+    });
+  };
+
+  const handleDeleteTrack = () => {
+    if (!track) return;
+
+    Alert.alert('Delete Track', `Delete "${track.name}" from the library?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await tracksApi.deleteTrack(track.id);
+            Alert.alert('Deleted', 'Track removed');
+            setTrack(null);
+          } catch (error) {
+            console.error('Delete error:', error);
+            Alert.alert('Error', 'Failed to delete track');
+          }
+        },
+      },
+    ]);
   };
 
   const formatDuration = (ms: number | null) => {
@@ -191,12 +258,41 @@ export default function RandomScreen() {
                 </Text>
               </TouchableOpacity>
 
+              <TouchableOpacity style={styles.actionButton} onPress={toggleIgnored}>
+                <IconSymbol
+                  name={track.ignored ? 'eye.slash.fill' : 'eye'}
+                  size={24}
+                  color={track.ignored ? '#F97316' : '#6B7280'}
+                />
+                <Text style={styles.actionText}>
+                  {track.ignored ? 'Ignored' : 'Ignore'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionButton} onPress={copyGuessText}>
+                <IconSymbol name='doc.on.doc' size={24} color="#4F46E5" />
+                <Text style={styles.actionText}>Guess Text</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionButton} onPress={openYouTube}>
+                <IconSymbol name="play.circle" size={24} color="#EF4444" />
+                <Text style={styles.actionText}>YouTube</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 style={styles.actionButton}
-                onPress={() => router.push(`/artist/${track.artist.id}`)}
+                onPress={() => router.push(`/track/${track.id}`)}
               >
-                <IconSymbol name="person.fill" size={24} color="#6366F1" />
-                <Text style={styles.actionText}>View Artist</Text>
+                <IconSymbol name="music.note.list" size={24} color="#0EA5E9" />
+                <Text style={styles.actionText}>View Track</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.actionButton, styles.deleteButton]}
+                onPress={handleDeleteTrack}
+              >
+                <IconSymbol name="trash" size={24} color="#EF4444" />
+                <Text style={[styles.actionText, styles.deleteButtonText]}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -365,9 +461,12 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 12,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
   },
   actionButton: {
     flex: 1,
+    flexBasis: '46%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -376,11 +475,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#D1D5DB',
+    backgroundColor: '#fff',
   },
   actionText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#111827',
+  },
+  deleteButton: {
+    borderColor: '#FEE2E2',
+    backgroundColor: '#FFF1F2',
+  },
+  deleteButtonText: {
+    color: '#EF4444',
   },
   emptyState: {
     alignItems: 'center',

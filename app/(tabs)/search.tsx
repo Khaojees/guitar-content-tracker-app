@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { Picker } from '@react-navigation/elements';
+import { Picker } from '@react-native-picker/picker';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { searchApi, saveApi } from '@/lib/api/endpoints';
 import type { SearchResult } from '@/lib/api/types';

@@ -13,9 +13,11 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { tracksApi } from '@/lib/api/endpoints';
 import type { TrackStatus } from '@/lib/api/types';
+import { buildGuessSongText } from '@/lib/guessSongText';
 
 const STATUS_OPTIONS: { value: TrackStatus; label: string; color: string }[] = [
   { value: 'idea', label: 'Idea', color: '#6B7280' },
@@ -97,6 +99,17 @@ export default function TrackDetailScreen() {
     const query = `${track.name} ${track.artist.name}`;
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
     Linking.openURL(url);
+  };
+
+  const handleCopyGuessText = async () => {
+    if (!track) return;
+    try {
+      await Clipboard.setStringAsync(buildGuessSongText(track.name, track.artist.name));
+      Alert.alert('Copied', 'Guess text copied to clipboard');
+    } catch (error) {
+      console.error('Copy error:', error);
+      Alert.alert('Error', 'Failed to copy text');
+    }
   };
 
   const handleDelete = () => {
@@ -241,6 +254,14 @@ export default function TrackDetailScreen() {
             >
               <IconSymbol name="play.circle" size={20} color="#EF4444" />
               <Text style={styles.actionButtonText}>YouTube</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleCopyGuessText}
+            >
+              <IconSymbol name="doc.on.doc" size={20} color="#4F46E5" />
+              <Text style={styles.actionButtonText}>Guess Text</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
